@@ -132,7 +132,7 @@ postgres://testuser%40EXAMPLE-REALM.TEST@postgres.example-realm.test:5432/testdb
 
 If it connects and creates successfully, we have been successful in authenticating using our Kerberos user principal!
 
-If you want to see that a ticket for our Postgres DB's service principal has been acquired, you can view (now changed)
+If you want to see that a ticket for our Postgres DB's service principal has been acquired, you can view the (now changed)
 ticket cache file by using the debian container to run `klist` against the file in the shared volume:
 
 ```
