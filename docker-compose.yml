@@ -1,0 +1,72 @@
+name: hasura-postgres-kerberos
+services:
+  kdc:
+    build: kdc/
+    container_name: kdc
+    volumes:
+      - krb5kdc-data:/var/lib/krb5kdc
+      # Only mounted here for the convenience of exporting Postgre's keytab file into
+      - postgres-kerberos:/mnt/postgres-kerberos
+    hostname: kdc.example-realm.test
+    networks:
+      - example-realm-network
+
+  postgres:
+    build: postgres/
+    container_name: postgres
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_PASSWORD: "hasura"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - postgres-kerberos:/var/lib/postgresql/kerberos
+    hostname: postgres.example-realm.test
+    networks:
+      - example-realm-network
+
+  debian:
+    build: debian/
+    volumes:
+      - ticket-cache:/mnt/ticket-cache
+    networks:
+      - example-realm-network
+
+  hasura:
+    image: hasura/graphql-engine:v2.34.0
+    container_name: hasura
+    ports:
+      - "8080:8080"
+    restart: always
+    environment:
+      ## Postgres database to store Hasura metadata
+      HASURA_GRAPHQL_METADATA_DATABASE_URL: postgres://postgres:hasura@postgres.example-realm.test:5432/postgres
+      HASURA_GRAPHQL_ENABLE_CONSOLE: "true"
+      HASURA_GRAPHQL_DEV_MODE: "true"
+      HASURA_GRAPHQL_ENABLED_LOG_TYPES: startup, http-log, webhook-log, websocket-log, query-log
+      HASURA_GRAPHQL_ADMIN_SECRET: Password123
+      ## Read the Kerberos ticket cache file from this directory
+      KRB5CCNAME: /mnt/ticket-cache/krb5cc_0
+    volumes:
+      # Mount the Kerberos config file into the container
+      - ./hasura/krb5.conf:/etc/krb5.conf
+      # Mount the ticket cache volume
+      - ticket-cache:/mnt/ticket-cache
+    hostname: hasura.example-realm.test
+    networks:
+      - example-realm-network
+
+volumes:
+  krb5kdc-data: {}
+  postgres-data: {}
+  postgres-kerberos: {}
+  ticket-cache: {}
+
+networks:
+  example-realm-network:
+    # This must match the domain used for the realm because things do reverse DNS
+    # lookups on the DB server IP to determine the part of the service principal name
+    # and reverse DNS lookup on one of these docker compose networks results in
+    # container-name.network-name. So doing this means the postgres container
+    # reverse looks-up to postgres.example-realm.test, which is perfect.
+    name: example-realm.test
